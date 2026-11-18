@@ -1,3 +1,4 @@
+
 const { Pool } = require('pg');
 const env = require('./env');
 
@@ -22,6 +23,7 @@ async function query(text, params = []) {
 
 async function withTransaction(callback) {
   const client = await pool.connect();
+
   try {
     await client.query('BEGIN');
     const result = await callback(client);

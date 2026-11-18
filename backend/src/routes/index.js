@@ -1,3 +1,4 @@
+
 const express = require('express');
 const authRoutes = require('./authRoutes');
 const orderRoutes = require('./orderRoutes');
@@ -13,10 +14,8 @@ const { authenticate } = require('../middleware/authMiddleware');
 const router = express.Router();
 
 router.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    service: "Wash n' Dash API",
-    timestamp: new Date().toISOString(),
+  res.status(200).json({
+    status: 'ok',
   });
 });
 
