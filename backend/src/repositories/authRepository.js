@@ -33,7 +33,7 @@ async function registerStaffUser(data) {
     const passwordHash = await bcrypt.hash(data.password, 10);
     const fullName = data.fullName.trim();
     const contactNumber = (data.contactNumber || '').trim() || 'Not provided';
-    const shift = data.shift?.trim() || 'Morning Shift (7:00 AM – 3:00 PM)';
+    const shift = data.shift?.trim() || 'Morning Shift (7:00 AM - 3:00 PM)';
 
     const { rows } = await client.query(
       `INSERT INTO staff_users (id, full_name, email, password_hash, contact_number, role, status, shift)
@@ -42,39 +42,46 @@ async function registerStaffUser(data) {
       [nextId, fullName, cleanEmail, passwordHash, contactNumber, shift]
     );
 
-    await client.query(
-      `INSERT INTO notifications (id, title, description, type, target_role, is_read, created_at)
-       VALUES ($1, $2, $3, 'order', 'ADMIN', FALSE, NOW())`,
-      [
-        `NTF-${Date.now()}`,
-        `New Staff Registered: ${fullName}`,
-        `${cleanEmail} registered as Staff (${nextId}).`,
-      ]
-    );
-
     return rows[0];
   });
 }
 
 async function updateCurrentProfile(userId, patch) {
-  const { rows } = await query(
-    `UPDATE staff_users
-     SET full_name = COALESCE($2, full_name),
-         email = COALESCE($3, email),
-         contact_number = COALESCE($4, contact_number),
-         shift = COALESCE($5, shift),
-         updated_at = NOW()
-     WHERE id = $1
-     RETURNING id, full_name, email, contact_number, role, status, shift, date_registered`,
-    [
-      userId,
-      patch.fullName || null,
-      patch.email || null,
-      patch.contactNumber || null,
-      patch.shift || null,
-    ]
-  );
-  return rows[0] || null;
+  return withTransaction(async (client) => {
+    const cleanEmail = patch.email?.trim().toLowerCase() || null;
+
+    if (cleanEmail) {
+      const existing = await client.query(
+        `SELECT id FROM staff_users
+         WHERE LOWER(email) = LOWER($1) AND id <> $2`,
+        [cleanEmail, userId]
+      );
+
+      if (existing.rows.length > 0) {
+        throw new AppError('This email address is already being used.', 409);
+      }
+    }
+
+    const { rows } = await client.query(
+      `UPDATE staff_users
+       SET full_name = COALESCE($2, full_name),
+           email = COALESCE($3, email),
+           contact_number = COALESCE($4, contact_number),
+           shift = COALESCE($5, shift),
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, full_name, email, contact_number, role, status, shift, date_registered`,
+      [
+        userId,
+        patch.fullName?.trim() || null,
+        cleanEmail,
+        patch.contactNumber?.trim() || null,
+        patch.shift?.trim() || null,
+      ]
+    );
+
+    return rows[0] || null;
+  });
 }
 
 module.exports = {

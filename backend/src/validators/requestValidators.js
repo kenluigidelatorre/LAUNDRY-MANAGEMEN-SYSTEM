@@ -1,3 +1,4 @@
+
 const AppError = require('../utils/AppError');
 
 function requireFields(body, fields) {
@@ -39,18 +40,43 @@ function validateRegister(req, res, next) {
 function validateCreateOrder(req, res, next) {
   try {
     requireFields(req.body, ['customerId', 'expectedCompletionDate']);
-    const { services, initialPayment, additionalCharges, discount } = req.body;
+
+    const { services, initialPayment, additionalCharges, discount, paymentMethod } = req.body;
+
     if (!Array.isArray(services) || services.length === 0) {
       throw new AppError('At least one laundry service must be selected.', 400);
     }
+
     for (const item of services) {
-      if (!item.serviceId || !Number.isFinite(Number(item.weightKg)) || Number(item.weightKg) <= 0) {
-        throw new AppError('Each selected service must include a valid serviceId and weightKg > 0.', 400);
+      if (
+        !item.serviceId ||
+        !Number.isFinite(Number(item.weightKg)) ||
+        Number(item.weightKg) <= 0
+      ) {
+        throw new AppError(
+          'Each selected service must include a valid serviceId and weightKg > 0.',
+          400
+        );
       }
     }
-    if (Number(additionalCharges || 0) < 0 || Number(discount || 0) < 0 || Number(initialPayment || 0) < 0) {
-      throw new AppError('Charges, discount, and initial payment cannot be negative.', 400);
+
+    const numericValues = [additionalCharges, discount, initialPayment];
+
+    if (
+      numericValues.some(
+        value => !Number.isFinite(Number(value ?? 0)) || Number(value ?? 0) < 0
+      )
+    ) {
+      throw new AppError(
+        'Charges, discount, and initial payment must be valid non-negative numbers.',
+        400
+      );
     }
+
+    if (paymentMethod && !['Cash', 'GCash', 'Maya'].includes(paymentMethod)) {
+      throw new AppError('Payment method must be Cash, GCash, or Maya.', 400);
+    }
+
     next();
   } catch (err) {
     next(err);
@@ -60,18 +86,39 @@ function validateCreateOrder(req, res, next) {
 function validateUpdateOrder(req, res, next) {
   try {
     requireFields(req.body, ['assignedStaffId', 'expectedCompletionDate']);
+
     const { services, additionalCharges, discount } = req.body;
+
     if (!Array.isArray(services) || services.length === 0) {
       throw new AppError('At least one laundry service must be selected.', 400);
     }
+
     for (const item of services) {
-      if (!item.serviceId || !Number.isFinite(Number(item.weightKg)) || Number(item.weightKg) <= 0) {
-        throw new AppError('Each selected service must include a valid serviceId and weightKg > 0.', 400);
+      if (
+        !item.serviceId ||
+        !Number.isFinite(Number(item.weightKg)) ||
+        Number(item.weightKg) <= 0
+      ) {
+        throw new AppError(
+          'Each selected service must include a valid serviceId and weightKg > 0.',
+          400
+        );
       }
     }
-    if (Number(additionalCharges || 0) < 0 || Number(discount || 0) < 0) {
-      throw new AppError('Charges and discount cannot be negative.', 400);
+
+    const numericValues = [additionalCharges, discount];
+
+    if (
+      numericValues.some(
+        value => !Number.isFinite(Number(value ?? 0)) || Number(value ?? 0) < 0
+      )
+    ) {
+      throw new AppError(
+        'Charges and discount must be valid non-negative numbers.',
+        400
+      );
     }
+
     next();
   } catch (err) {
     next(err);
@@ -90,10 +137,13 @@ function validateCustomer(req, res, next) {
 function validateService(req, res, next) {
   try {
     requireFields(req.body, ['name', 'description', 'estimatedTime']);
+
     const price = Number(req.body.pricePerKg);
+
     if (!Number.isFinite(price) || price <= 0) {
       throw new AppError('Price per kilogram must be greater than ₱0.00.', 400);
     }
+
     next();
   } catch (err) {
     next(err);
@@ -103,9 +153,11 @@ function validateService(req, res, next) {
 function validateStaff(req, res, next) {
   try {
     requireFields(req.body, ['fullName', 'email', 'contactNumber']);
+
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(req.body.email).trim())) {
       throw new AppError('Please provide a valid email address.', 400);
     }
+
     next();
   } catch (err) {
     next(err);
@@ -115,13 +167,17 @@ function validateStaff(req, res, next) {
 function validatePayment(req, res, next) {
   try {
     requireFields(req.body, ['orderId', 'method']);
+
     const amount = Number(req.body.amount);
+
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new AppError('Payment amount must be greater than ₱0.00.', 400);
     }
+
     if (!['Cash', 'GCash', 'Maya'].includes(req.body.method)) {
       throw new AppError('Payment method must be Cash, GCash, or Maya.', 400);
     }
+
     next();
   } catch (err) {
     next(err);
@@ -131,12 +187,18 @@ function validatePayment(req, res, next) {
 function validateInventory(req, res, next) {
   try {
     requireFields(req.body, ['name', 'category', 'unit']);
-    if (Number(req.body.quantity) < 0) {
-      throw new AppError('Quantity cannot be negative.', 400);
+
+    const quantity = Number(req.body.quantity);
+    const minThreshold = Number(req.body.minThreshold);
+
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      throw new AppError('Quantity must be a valid non-negative number.', 400);
     }
-    if (Number(req.body.minThreshold) < 1) {
-      throw new AppError('Minimum threshold must be at least 1.', 400);
+
+    if (!Number.isFinite(minThreshold) || minThreshold < 1) {
+      throw new AppError('Minimum threshold must be a valid number of at least 1.', 400);
     }
+
     next();
   } catch (err) {
     next(err);

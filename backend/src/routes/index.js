@@ -10,7 +10,7 @@ const inventoryRoutes = require('./inventoryRoutes');
 const settingsRoutes = require('./settingsRoutes');
 const bootstrapController = require('../controllers/bootstrapController');
 const { authenticate } = require('../middleware/authMiddleware');
-
+const notificationRoutes = require('./notificationRoutes');
 const router = express.Router();
 
 router.get('/health', (req, res) => {
@@ -28,5 +28,6 @@ router.use('/staff', staffRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/inventory', inventoryRoutes);
 router.use('/', settingsRoutes);
+router.use('/notifications', authenticate, notificationRoutes);
 
 module.exports = router;
