@@ -1,3 +1,4 @@
+
 import axios from 'axios';
 
 export const TOKEN_STORAGE_KEY = 'washndash_jwt_v1';
@@ -26,18 +27,14 @@ export function setStoredToken(token, remember = true) {
       sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
       localStorage.removeItem(TOKEN_STORAGE_KEY);
     }
-  } catch {
-    // ignore storage errors
-  }
+  } catch {}
 }
 
 export function clearStoredToken() {
   try {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     sessionStorage.removeItem(TOKEN_STORAGE_KEY);
-  } catch {
-    // ignore storage errors
-  }
+  } catch {}
 }
 
 const api = axios.create({
@@ -50,9 +47,11 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = getStoredToken();
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
 
@@ -60,15 +59,20 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
+
     if (status === 401 && !error.config?.url?.includes('/auth/login')) {
       clearStoredToken();
       window.dispatchEvent(new CustomEvent('washndash:unauthorized'));
     }
+
     return Promise.reject(error);
   }
 );
 
-export function extractErrorMessage(err, fallback = 'Request failed. Please try again.') {
+export function extractErrorMessage(
+  err,
+  fallback = 'Request failed. Please try again.'
+) {
   return (
     err?.response?.data?.message ||
     err?.response?.data?.error ||
