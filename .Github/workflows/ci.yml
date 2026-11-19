@@ -11,6 +11,10 @@ on:
     branches:
       - main
       - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   backend-check:
@@ -35,8 +39,8 @@ jobs:
       - name: Install Backend Dependencies
         run: npm ci
 
-      - name: Check Backend Syntax
-        run: node --check src/index.js
+      - name: Run Backend Tests
+        run: npm test
 
   frontend-check:
     name: Frontend Check
