@@ -1,0 +1,171 @@
+@import "tailwindcss";
+
+:root {
+  --blue: #1d5ef3;
+  --blue-dark: #154fd6;
+  --navy: #111c33;
+  --sidebar-navy: #1649c6;
+  --sidebar-active: #2b62ea;
+  --ink: #13213c;
+  --muted: #5d6a85;
+  --line: #dce6fa;
+  --bg: #eef4ff;
+  --white: #ffffff;
+  --green: #28b987;
+  --purple: #8567e8;
+  --orange: #f6a44c;
+  --danger: #ff5965;
+  --shadow: 0 14px 40px rgba(29, 94, 243, 0.08);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    background-color: var(--bg);
+    font-family: 'DM Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Manrope', sans-serif;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  input, textarea, select {
+    outline: none;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Figma Logo Mark (three cascading laundry bubbles) */
+.wd-logo-mark {
+  width: 31px;
+  height: 31px;
+  display: block;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.wd-logo-mark i {
+  position: absolute;
+  border-radius: 9999px;
+  background: var(--blue);
+}
+
+.wd-logo-mark i:nth-child(1) {
+  width: 19px;
+  height: 19px;
+  bottom: 1px;
+  left: 1px;
+}
+
+.wd-logo-mark i:nth-child(2) {
+  width: 14px;
+  height: 14px;
+  top: 1px;
+  right: 0;
+  background: #69a4ff;
+}
+
+.wd-logo-mark i:nth-child(3) {
+  width: 8px;
+  height: 8px;
+  bottom: 2px;
+  right: 3px;
+  background: #b7d2ff;
+}
+
+.wd-logo-mark--inverted i:nth-child(1) {
+  background: #ffffff;
+}
+
+.wd-logo-mark--inverted i:nth-child(2) {
+  background: #c6d9ff;
+}
+
+.wd-logo-mark--inverted i:nth-child(3) {
+  background: #80aaff;
+}
+
+/* Two-Tone Ice-Blue & Royal-Blue Auth Brand Panel */
+.wd-auth-brand {
+  background: linear-gradient(160deg, #ebf2ff 0%, #dce8ff 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.wd-auth-brand::before,
+.wd-auth-brand::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.wd-auth-brand::before {
+  width: 440px;
+  height: 220px;
+  top: 0;
+  left: 0;
+  background: rgba(159, 186, 255, 0.55);
+  clip-path: polygon(0 0, 100% 0, 0 75%);
+}
+
+.wd-auth-brand::after {
+  width: 360px;
+  height: 360px;
+  bottom: -140px;
+  right: -120px;
+  border-radius: 50%;
+  background: rgba(29, 94, 243, 0.08);
+}
+
+/* Figma Chart Grid Background */
+.wd-chart-bars-bg {
+  background: repeating-linear-gradient(
+    to bottom,
+    #ffffff 0 38px,
+    #edf0f5 38px 39px
+  );
+}
+
+/* Print styles for Wash n' Dash Official Receipt */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #printable-receipt,
+  #printable-receipt * {
+    visibility: visible !important;
+  }
+  #printable-receipt {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 420px !important;
+    margin: 0 auto !important;
+    padding: 24px !important;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
