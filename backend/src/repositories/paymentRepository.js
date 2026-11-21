@@ -20,12 +20,20 @@ function mapTxn(row) {
   };
 }
 
-async function listTransactions() {
+async function listTransactions(user = null) {
+  const params = [];
+  let whereClause = '';
+  if (user && user.role === 'CUSTOMER') {
+    params.push(user.customerId || '__NONE__');
+    whereClause = `WHERE pt.customer_id = $1`;
+  }
   const { rows } = await query(
     `SELECT pt.*, c.full_name AS customer_name
      FROM payment_transactions pt
      JOIN customers c ON c.id = pt.customer_id
-     ORDER BY pt.payment_date DESC`
+     ${whereClause}
+     ORDER BY pt.payment_date DESC`,
+    params
   );
   return rows.map(mapTxn);
 }
@@ -109,15 +117,36 @@ async function recordPayment(input, actor) {
     );
 
     await client.query(
-      `INSERT INTO notifications (id, title, description, type, target_role, is_read, created_at)
-       VALUES ($1, $2, $3, 'payment', 'ALL', FALSE, $4)`,
+      `INSERT INTO notifications (id, title, description, type, target_role, customer_id, is_read, created_at)
+       VALUES ($1, $2, $3, 'payment', 'ALL', NULL, FALSE, $4)`,
       [
-        `NTF-${Date.now()}`,
+        `NTF-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         `Payment Recorded: ${order.id}`,
         `${formatPHP(appliedAmount)} received via ${input.method}.`,
         nowIso,
       ]
     );
+    const prefRes = await client.query(
+      `SELECT notification_preferences FROM staff_users WHERE customer_id = $1 AND role = 'CUSTOMER' LIMIT 1`,
+      [order.customer_id]
+    );
+    const allowPaymentNtf =
+      prefRes.rows.length === 0 ||
+      !prefRes.rows[0].notification_preferences ||
+      prefRes.rows[0].notification_preferences.paymentUpdates !== false;
+    if (allowPaymentNtf) {
+      await client.query(
+        `INSERT INTO notifications (id, title, description, type, target_role, customer_id, is_read, created_at)
+         VALUES ($1, $2, $3, 'payment', 'CUSTOMER', $4, FALSE, $5)`,
+        [
+          `NTF-${Date.now()}-${Math.floor(Math.random() * 10000)}-C`,
+          `Payment Confirmed: ${order.id}`,
+          `${formatPHP(appliedAmount)} received via ${input.method}. Remaining balance: ${formatPHP(newBalance)}.`,
+          order.customer_id,
+          nowIso,
+        ]
+      );
+    }
 
     const row = { ...txnRes.rows[0], customer_name: order.customer_name };
     return mapTxn(row);

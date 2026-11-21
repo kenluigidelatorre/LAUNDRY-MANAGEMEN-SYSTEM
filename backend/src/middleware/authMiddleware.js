@@ -23,9 +23,11 @@ async function authenticate(req, res, next) {
     }
 
     const { rows } = await query(
-      `SELECT id, full_name, email, contact_number, role, status, shift, date_registered
-       FROM staff_users
-       WHERE id = $1`,
+      `SELECT u.id, u.full_name, u.email, u.contact_number, u.role, u.customer_id, u.status, u.shift, u.date_registered,
+              c.address AS customer_address
+       FROM staff_users u
+       LEFT JOIN customers c ON c.id = u.customer_id
+       WHERE u.id = $1`,
       [decoded.id]
     );
 
@@ -44,6 +46,8 @@ async function authenticate(req, res, next) {
       email: userRow.email,
       contactNumber: userRow.contact_number,
       role: userRow.role,
+      customerId: userRow.customer_id || null,
+      address: userRow.customer_address || '',
       status: userRow.status,
       shift: userRow.shift,
       dateRegistered: userRow.date_registered,

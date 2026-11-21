@@ -13,13 +13,17 @@ router.use(authenticate);
 router.get('/', orderController.listOrders);
 router.get('/:id', orderController.getOrder);
 router.post('/', validateCreateOrder, orderController.createOrder);
-router.put('/:id', validateUpdateOrder, orderController.updateOrder);
-router.patch('/:id/status', orderController.updateStatus);
+
+// Staff & Admin order processing
+router.put('/:id', requireRole('ADMIN', 'STAFF'), validateUpdateOrder, orderController.updateOrder);
+router.patch('/:id/status', requireRole('ADMIN', 'STAFF'), orderController.updateStatus);
+
+// Admin & Customer (pre-wash own orders only) cancellation
+router.post('/:id/cancel', requireRole('ADMIN', 'CUSTOMER'), orderController.cancelOrder);
 
 // Admin-only order administration
 router.patch('/:id/assign', requireRole('ADMIN'), orderController.assignStaff);
 router.patch('/:id/expected-date', requireRole('ADMIN'), orderController.updateExpectedDate);
-router.post('/:id/cancel', requireRole('ADMIN'), orderController.cancelOrder);
 router.delete('/:id', requireRole('ADMIN'), orderController.deleteOrder);
 
 module.exports = router;
