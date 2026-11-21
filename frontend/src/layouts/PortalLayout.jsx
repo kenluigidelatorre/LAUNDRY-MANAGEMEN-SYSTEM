@@ -201,7 +201,7 @@ export const PortalLayout = ({ variant, children }) => {
     { label: 'My Orders', to: '/customer/orders', icon: <ClipboardList className="w-[18px] h-[18px]" /> },
     { label: 'Order Tracking', to: '/customer/tracking', icon: <Truck className="w-[18px] h-[18px]" /> },
     { label: 'Services & Rates', to: '/customer/services', icon: <Sparkles className="w-[18px] h-[18px]" /> },
-    { label: 'Billing & Receipts', to: '/customer/payments', icon: <CreditCard className="w-[18px] h-[18px]" /> },
+    { label: 'Payment History', to: '/customer/payments', icon: <CreditCard className="w-[18px] h-[18px]" /> },
     { label: 'My Profile', to: '/customer/profile', icon: <UserCheck className="w-[18px] h-[18px]" /> },
   ];
 
