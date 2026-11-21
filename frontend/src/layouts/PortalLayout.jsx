@@ -118,7 +118,7 @@ const ROUTE_TITLES = {
     subtitle: "Explore Wash n' Dash laundry services, turnaround times, and pricing.",
   },
   '/customer/payments': {
-    title: 'Billing & Receipts',
+    title: 'Payment History',
     subtitle: 'View payment history, remaining balances, and printable receipts.',
   },
   '/customer/profile': {
