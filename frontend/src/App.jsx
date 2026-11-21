@@ -6,7 +6,7 @@ import {
   Route,
   Routes,
 } from 'react-router-dom';
-import { AppProvider, useApp } from './context/AppContext';
+import { AppProvider, getHomeRouteByRole, useApp } from './context/AppContext';
 import { PortalLayout } from './layouts/PortalLayout';
 import { Logo } from './components/common/Logo';
 import { ToastContainer } from './components/common/UIPrimitives';
@@ -25,6 +25,14 @@ import { OrderTrackingPage } from './pages/shared/OrderTrackingPage';
 import { CustomersPage } from './pages/shared/CustomersPage';
 import { PaymentsPage } from './pages/shared/PaymentsPage';
 import { NewOrderPage } from './pages/shared/NewOrderPage';
+import { CustomerDashboard } from './pages/customer/CustomerDashboard';
+import { CustomerBookOrderPage } from './pages/customer/CustomerBookOrderPage';
+import { CustomerOrdersPage } from './pages/customer/CustomerOrdersPage';
+import { CustomerTrackingPage } from './pages/customer/CustomerTrackingPage';
+import { CustomerServicesPage } from './pages/customer/CustomerServicesPage';
+import { CustomerPaymentsPage } from './pages/customer/CustomerPaymentsPage';
+import { CustomerProfilePage } from './pages/customer/CustomerProfilePage';
+import { CustomerSettingsPage } from './pages/customer/CustomerSettingsPage';
 
 const WorkspaceLoading = () => (
   <div className="min-h-screen bg-[#eef4ff] grid place-items-center px-6">
@@ -52,16 +60,18 @@ const ProtectedPortal = ({ allowedRole }) => {
   }
 
   if (user.role !== allowedRole) {
-    return (
-      <Navigate
-        to={user.role === 'ADMIN' ? '/admin/dashboard' : '/staff/dashboard'}
-        replace
-      />
-    );
+    return <Navigate to={getHomeRouteByRole(user.role)} replace />;
   }
 
+  const variant =
+    allowedRole === 'ADMIN'
+      ? 'admin'
+      : allowedRole === 'CUSTOMER'
+      ? 'customer'
+      : 'staff';
+
   return (
-    <PortalLayout variant={allowedRole === 'ADMIN' ? 'admin' : 'staff'}>
+    <PortalLayout variant={variant}>
       <Outlet />
     </PortalLayout>
   );
@@ -71,17 +81,11 @@ const RootRedirect = () => {
   const { user, authLoading } = useApp();
   if (authLoading) return <WorkspaceLoading />;
   if (!user) return <WelcomePage />;
-  return (
-    <Navigate
-      to={user.role === 'ADMIN' ? '/admin/dashboard' : '/staff/dashboard'}
-      replace
-    />
-  );
+  return <Navigate to={getHomeRouteByRole(user.role)} replace />;
 };
 
 const AppShell = () => {
   const { toasts, dismissToast } = useApp();
-
   return (
     <>
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
@@ -114,6 +118,18 @@ const AppShell = () => {
           <Route path="customers" element={<CustomersPage />} />
           <Route path="payments" element={<PaymentsPage />} />
           <Route path="profile" element={<StaffProfilePage />} />
+        </Route>
+
+        <Route path="/customer" element={<ProtectedPortal allowedRole="CUSTOMER" />}>
+          <Route index element={<Navigate to="/customer/dashboard" replace />} />
+          <Route path="dashboard" element={<CustomerDashboard />} />
+          <Route path="book" element={<CustomerBookOrderPage />} />
+          <Route path="orders" element={<CustomerOrdersPage />} />
+          <Route path="tracking" element={<CustomerTrackingPage />} />
+          <Route path="services" element={<CustomerServicesPage />} />
+          <Route path="payments" element={<CustomerPaymentsPage />} />
+          <Route path="profile" element={<CustomerProfilePage />} />
+          <Route path="settings" element={<CustomerSettingsPage />} />
         </Route>
 
         <Route path="*" element={<RootRedirect />} />

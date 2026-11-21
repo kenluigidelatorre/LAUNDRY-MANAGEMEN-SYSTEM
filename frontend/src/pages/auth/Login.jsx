@@ -7,15 +7,17 @@ import {
   EyeOff,
   Lock,
   Mail,
+  MapPin,
+  Phone,
   User,
   UserPlus,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { getHomeRouteByRole, useApp } from '../../context/AppContext';
 import { Logo } from '../../components/common/Logo';
 import { LaundryHeroIllustration } from '../../components/common/LaundryHeroIllustration';
 
 export const Login = () => {
-  const { user, login, registerStaff, notify } = useApp();
+  const { user, login, registerCustomer, notify } = useApp();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -29,9 +31,11 @@ export const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
-  // Register state (Name, Email, Password, Confirm Password only)
+  // Customer Register state
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regAddress, setRegAddress] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [showRegPassword, setShowRegPassword] = useState(false);
@@ -51,9 +55,7 @@ export const Login = () => {
 
   useEffect(() => {
     if (user) {
-      navigate(user.role === 'ADMIN' ? '/admin/dashboard' : '/staff/dashboard', {
-        replace: true,
-      });
+      navigate(getHomeRouteByRole(user.role), { replace: true });
     }
   }, [user, navigate]);
 
@@ -88,11 +90,8 @@ export const Login = () => {
         setError(res.error || 'Authentication failed.');
         return;
       }
-
       notify(`Welcome back, ${res.user.name}`);
-      navigate(res.user.role === 'ADMIN' ? '/admin/dashboard' : '/staff/dashboard', {
-        replace: true,
-      });
+      navigate(getHomeRouteByRole(res.user.role), { replace: true });
     } finally {
       setSubmitting(false);
     }
@@ -122,32 +121,20 @@ export const Login = () => {
 
     setSubmitting(true);
     try {
-      const res = await registerStaff({
+      const res = await registerCustomer({
         fullName: regName.trim(),
         email: regEmail.trim(),
+        contactNumber: regPhone.trim() || undefined,
+        address: regAddress.trim() || undefined,
         password: regPassword,
       });
-
-      if (!res.ok || !res.member) {
-        setError(res.error || 'Unable to register account.');
+      const registeredUser = res.user || res.member;
+      if (!res.ok || !registeredUser) {
+        setError(res.error || 'Unable to register customer account.');
         return;
       }
-
-      const createdEmail = res.member.email;
-      const createdName = res.member.name;
-
-      setRegName('');
-      setRegEmail('');
-      setRegPassword('');
-      setRegConfirmPassword('');
-
-      setEmail(createdEmail);
-      setPassword('');
-      setMode('login');
-      setSuccessMsg(
-        `Account registered for ${createdName} (${createdEmail}). Enter your password below to sign in.`
-      );
-      notify(`Account created for ${createdName}`);
+      notify(`Welcome to Wash n' Dash, ${registeredUser.name}!`);
+      navigate(getHomeRouteByRole(registeredUser.role), { replace: true });
     } finally {
       setSubmitting(false);
     }
@@ -175,7 +162,7 @@ export const Login = () => {
             Laundry Management <span className="text-[#1d5ef3]">System</span>
           </h1>
           <p className="text-[#4b5c7a] text-[14px] mt-2">
-            Manage orders, track status, and run your counter POS.
+            Book laundry, track orders, and manage shop operations.
           </p>
         </div>
 
@@ -200,12 +187,12 @@ export const Login = () => {
           </div>
 
           <h2 className="font-display text-[30px] sm:text-[32px] font-extrabold tracking-[-0.03em] text-[#111c33] mb-1.5">
-            {mode === 'login' ? 'Sign in' : 'Register'}
+            {mode === 'login' ? 'Sign in' : 'Register an Account'}
           </h2>
           <p className="text-[14px] text-[#5d6a85] mb-5">
             {mode === 'login'
-              ? 'Sign in with your Gmail or email account.'
-              : 'Create your account using your Gmail or email address.'}
+              ? 'Sign in to your Account to continue'
+              : 'Create an account'}
           </p>
 
           <div className="grid grid-cols-2 gap-1.5 p-1 rounded-[11px] bg-[#eef4ff] border border-[#dce6fa] mb-5">
@@ -320,13 +307,13 @@ export const Login = () => {
               </button>
 
               <p className="mt-5 text-center text-[13px] text-[#5d6a85]">
-                Don&apos;t have an account yet?{' '}
+                New customer?{' '}
                 <button
                   type="button"
                   onClick={() => switchMode('register')}
                   className="font-bold text-[#1d5ef3] hover:underline"
                 >
-                  Register
+                  Create a customer account
                 </button>
               </p>
             </form>
@@ -372,6 +359,47 @@ export const Login = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label
+                    htmlFor="reg-phone"
+                    className="block text-[12px] font-bold text-[#13213c] mb-1.5"
+                  >
+                    Contact Number
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-[#94a3b8] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      id="reg-phone"
+                      type="text"
+                      value={regPhone}
+                      onChange={(e) => setRegPhone(e.target.value)}
+                      placeholder="+63 917 000 0000"
+                      className="w-full h-[44px] pl-10 pr-3 rounded-[10px] border border-[#dce6fa] bg-white text-[13px] text-[#13213c] focus:border-[#1d5ef3] focus:ring-3 focus:ring-[#eaf1ff] transition-all"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label
+                    htmlFor="reg-address"
+                    className="block text-[12px] font-bold text-[#13213c] mb-1.5"
+                  >
+                    Address
+                  </label>
+                  <div className="relative">
+                    <MapPin className="w-4 h-4 text-[#94a3b8] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      id="reg-address"
+                      type="text"
+                      value={regAddress}
+                      onChange={(e) => setRegAddress(e.target.value)}
+                      placeholder="Makati City"
+                      className="w-full h-[44px] pl-10 pr-3 rounded-[10px] border border-[#dce6fa] bg-white text-[13px] text-[#13213c] focus:border-[#1d5ef3] focus:ring-3 focus:ring-[#eaf1ff] transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label
                   htmlFor="reg-password"
@@ -386,14 +414,14 @@ export const Login = () => {
                     type={showRegPassword ? 'text' : 'password'}
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
-                    className="w-full h-[44px] pl-10 pr-10 rounded-[10px] border border-[#dce6fa] bg-white text-[13.5px] text-[#13213c] focus:border-[#1d5ef3] focus:ring-3 focus:ring-[#eaf1ff] transition-all"
+                    placeholder="At least 6 characters"
+                    className="w-full h-[44px] pl-10 pr-12 rounded-[10px] border border-[#dce6fa] bg-white text-[13.5px] text-[#13213c] focus:border-[#1d5ef3] focus:ring-3 focus:ring-[#eaf1ff] transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowRegPassword((p) => !p)}
                     aria-label={showRegPassword ? 'Hide password' : 'Show password'}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#1d5ef3] p-1"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#1d5ef3] hover:text-[#154fd6] p-1"
                   >
                     {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -435,7 +463,7 @@ export const Login = () => {
                   onClick={() => switchMode('login')}
                   className="font-bold text-[#1d5ef3] hover:underline"
                 >
-                  Sign in instead
+                  Sign in
                 </button>
               </p>
             </form>
