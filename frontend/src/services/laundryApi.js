@@ -17,6 +17,14 @@ export const authApi = {
     const res = await api.put('/auth/profile', patch);
     return res.data;
   },
+  changePassword: async (payload) => {
+    const res = await api.put('/auth/password', payload);
+    return res.data;
+  },
+  updatePreferences: async (payload) => {
+    const res = await api.put('/auth/preferences', payload);
+    return res.data;
+  },
 };
 
 export const bootstrapApi = {

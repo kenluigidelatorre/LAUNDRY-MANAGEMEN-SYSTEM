@@ -15,6 +15,8 @@ import {
   Truck,
   UserCheck,
   UserCog,
+  PlusCircle,
+  Sparkles,
   Users,
   X,
 } from 'lucide-react';
@@ -36,7 +38,7 @@ const ROUTE_TITLES = {
     subtitle: 'Log a walk-in or pickup laundry order in three simple steps.',
   },
   '/admin/tracking': {
-    title: 'Order tracking',
+    title: 'Notification settings',
     subtitle: 'Monitor laundry progress from drop-off to pickup.',
   },
   '/admin/customers': {
@@ -80,7 +82,7 @@ const ROUTE_TITLES = {
     subtitle: 'Log a laundry order in three simple steps.',
   },
   '/staff/tracking': {
-    title: 'Order tracking',
+    title: 'Notification settings',
     subtitle: 'Update processing stages and log laundry remarks.',
   },
   '/staff/customers': {
@@ -94,6 +96,38 @@ const ROUTE_TITLES = {
   '/staff/profile': {
     title: 'My profile',
     subtitle: 'Manage your personal details and view recent activity.',
+  },
+  '/customer/dashboard': {
+    title: 'My Laundry Overview',
+    subtitle: "Track your active orders, pickup schedule, and balances with Wash n' Dash.",
+  },
+  '/customer/book': {
+    title: 'Book Laundry Service',
+    subtitle: 'Select your services, estimate weight, and submit a laundry request.',
+  },
+  '/customer/orders': {
+    title: 'My Orders',
+    subtitle: 'Review your active and past laundry orders and view official receipts.',
+  },
+  '/customer/tracking': {
+    title: 'Track My Laundry',
+    subtitle: 'Follow live 7-stage progress from drop-off to ready for pickup.',
+  },
+  '/customer/services': {
+    title: 'Services & PHP Rates',
+    subtitle: "Explore Wash n' Dash laundry services, turnaround times, and pricing.",
+  },
+  '/customer/payments': {
+    title: 'Billing & Receipts',
+    subtitle: 'View payment history, remaining balances, and printable receipts.',
+  },
+  '/customer/profile': {
+    title: 'My Profile',
+    subtitle: 'Update your contact number, email, and pickup/delivery address.',
+  },
+  '/customer/settings': {
+    title: 'Account & Notification Settings',
+    subtitle: 'Manage order alerts, auto-refresh intervals, and account security.',
   },
 };
 
@@ -128,13 +162,15 @@ export const PortalLayout = ({ variant, children }) => {
   }, []);
 
   const isAdmin = variant === 'admin';
+  const isCustomer = variant === 'customer';
 
   const visibleNotifications = useMemo(
     () =>
-      notifications.filter(
-        (n) => n.targetRole === 'ALL' || n.targetRole === (isAdmin ? 'ADMIN' : 'STAFF')
-      ),
-    [notifications, isAdmin]
+      notifications.filter((n) => {
+        if (isCustomer) return n.targetRole === 'CUSTOMER';
+        return n.targetRole === 'ALL' || n.targetRole === (isAdmin ? 'ADMIN' : 'STAFF');
+      }),
+    [notifications, isAdmin, isCustomer]
   );
   const unreadCount = visibleNotifications.filter((n) => !n.read).length;
 
@@ -159,9 +195,19 @@ export const PortalLayout = ({ variant, children }) => {
     { label: 'My Profile', to: '/staff/profile', icon: <UserCheck className="w-[18px] h-[18px]" /> },
   ];
 
-  const navItems = isAdmin ? adminNav : staffNav;
+  const customerNav = [
+    { label: 'Overview', to: '/customer/dashboard', icon: <LayoutDashboard className="w-[18px] h-[18px]" /> },
+    { label: 'Book Laundry', to: '/customer/book', icon: <PlusCircle className="w-[18px] h-[18px]" /> },
+    { label: 'My Orders', to: '/customer/orders', icon: <ClipboardList className="w-[18px] h-[18px]" /> },
+    { label: 'Order Tracking', to: '/customer/tracking', icon: <Truck className="w-[18px] h-[18px]" /> },
+    { label: 'Services & Rates', to: '/customer/services', icon: <Sparkles className="w-[18px] h-[18px]" /> },
+    { label: 'Billing & Receipts', to: '/customer/payments', icon: <CreditCard className="w-[18px] h-[18px]" /> },
+    { label: 'My Profile', to: '/customer/profile', icon: <UserCheck className="w-[18px] h-[18px]" /> },
+  ];
+
+  const navItems = isAdmin ? adminNav : isCustomer ? customerNav : staffNav;
   const pageInfo = ROUTE_TITLES[location.pathname] || {
-    title: isAdmin ? 'Dashboard overview' : 'Overview',
+    title: isAdmin ? 'Dashboard overview' : isCustomer ? 'Customer Portal' : 'Overview',
     subtitle: "Wash n' Dash Laundry Shop Management System",
   };
 
@@ -169,7 +215,7 @@ export const PortalLayout = ({ variant, children }) => {
     e.preventDefault();
     const q = globalSearch.trim();
     if (!q) return;
-    navigate(`${isAdmin ? '/admin/orders' : '/staff/orders'}?q=${encodeURIComponent(q)}`);
+    navigate(`${isAdmin ? '/admin/orders' : isCustomer ? '/customer/orders' : '/staff/orders'}?q=${encodeURIComponent(q)}`);
     setGlobalSearch('');
   };
 
@@ -179,7 +225,7 @@ export const PortalLayout = ({ variant, children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#eef4ff] text-[#13213c]">
+    <div className="h-dvh overflow-hidden bg-[#eef4ff] text-[#13213c]">
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-25 bg-[#0c182e]/40 lg:hidden"
@@ -215,7 +261,7 @@ export const PortalLayout = ({ variant, children }) => {
             isAdmin ? 'text-[#a5c1ff]' : 'text-[#8ea0c2]'
           }`}
         >
-          {isAdmin ? 'Admin Workspace' : 'Staff Workspace'}
+          {isAdmin ? 'Admin Workspace' : isCustomer ? 'Customer Portal' : 'Staff Workspace'}
         </div>
 
         <nav className="flex-1 flex flex-col gap-[4px] overflow-y-auto pr-0.5">
@@ -246,9 +292,9 @@ export const PortalLayout = ({ variant, children }) => {
             isAdmin ? 'border-[#2f63dc]' : 'border-[#dce6fa]'
           }`}
         >
-          {isAdmin && (
+          {(isAdmin || isCustomer) && (
             <NavLink
-              to="/admin/settings"
+              to={isAdmin ? '/admin/settings' : '/customer/settings'}
               className={({ isActive }) =>
                 `flex items-center gap-3 h-[42px] px-3 rounded-[9px] text-[13px] font-semibold transition-colors whitespace-nowrap ${
                   isActive
@@ -302,8 +348,8 @@ export const PortalLayout = ({ variant, children }) => {
         </div>
       </aside>
 
-      <div className="lg:ml-[246px] min-h-screen flex flex-col">
-        <header className="sticky top-0 z-20 h-[84px] bg-white border-b border-[#dce6fa] px-4 sm:px-[30px] flex items-center justify-between gap-4 no-print">
+      <div className="lg:ml-[246px] h-dvh flex flex-col min-w-0 overflow-hidden">
+        <header className="shrink-0 z-20 h-[84px] bg-white border-b border-[#dce6fa] px-4 sm:px-[30px] flex items-center justify-between gap-4 no-print">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
@@ -425,7 +471,7 @@ export const PortalLayout = ({ variant, children }) => {
                     type="button"
                     onClick={() => {
                       setProfileOpen(false);
-                      navigate(isAdmin ? '/admin/settings' : '/staff/profile');
+                      navigate(isAdmin ? '/admin/settings' : isCustomer ? '/customer/profile' : '/staff/profile');
                     }}
                     className="w-full text-left px-4 py-2 text-[12.5px] font-semibold text-[#17223b] hover:bg-[#f5f7fb]"
                   >
@@ -435,11 +481,11 @@ export const PortalLayout = ({ variant, children }) => {
                     type="button"
                     onClick={() => {
                       setProfileOpen(false);
-                      navigate(isAdmin ? '/admin/tracking' : '/staff/tracking');
+                      navigate(isAdmin ? '/admin/tracking' : isCustomer ? '/customer/tracking' : '/staff/tracking');
                     }}
                     className="w-full text-left px-4 py-2 text-[12.5px] font-semibold text-[#17223b] hover:bg-[#f5f7fb]"
                   >
-                    Order tracking
+                    Notification settings
                   </button>
                   <div className="my-1 border-t border-[#e5eaf2]" />
                   <button
@@ -455,9 +501,11 @@ export const PortalLayout = ({ variant, children }) => {
           </div>
         </header>
 
-        <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-[30px] py-[24px]">
-          {children}
-        </main>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          <main className="w-full max-w-[1400px] mx-auto px-4 sm:px-[30px] py-[24px]">
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );

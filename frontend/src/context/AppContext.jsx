@@ -49,6 +49,12 @@ const EMPTY_STORE = {
   settings: EMPTY_SETTINGS,
 };
 
+export function getHomeRouteByRole(role) {
+  if (role === 'ADMIN') return '/admin/dashboard';
+  if (role === 'STAFF') return '/staff/dashboard';
+  return '/customer/dashboard';
+}
+
 const AppContext = createContext(undefined);
 
 export const AppProvider = ({ children }) => {
@@ -260,24 +266,44 @@ export const AppProvider = ({ children }) => {
     [hydrateFromDatabase]
   );
 
-  const registerStaff = useCallback(async (payload) => {
-    try {
-      const res = await authApi.register(payload);
+  const registerCustomer = useCallback(
+    async (payload) => {
+      try {
+        const res = await authApi.register(payload);
+        if (res.user && res.user.role !== 'CUSTOMER') {
+          clearStoredToken();
+          return {
+            ok: false,
+            error:
+              'Connected backend returned role "' +
+              res.user.role +
+              '" instead of "CUSTOMER". Please start the updated 3-role backend server from this package.',
+          };
+        }
+        if (res.token && res.user) {
+          sessionVersionRef.current += 1;
+          setStoredToken(res.token, true);
+          setUser(res.user);
+          await hydrateFromDatabase();
+        }
 
-      return {
-        ok: true,
-        member: res.user,
-      };
-    } catch (err) {
-      return {
-        ok: false,
-        error: extractErrorMessage(
-          err,
-          'Unable to register staff account.'
-        ),
-      };
-    }
-  }, []);
+        return {
+          ok: true,
+          user: res.user,
+          member: res.user,
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          error: extractErrorMessage(
+            err,
+            'Unable to register customer account.'
+          ),
+        };
+      }
+    },
+    [hydrateFromDatabase]
+  );
 
   const markNotificationRead = useCallback(async (id) => {
     setNotifications((prev) =>
@@ -313,6 +339,50 @@ export const AppProvider = ({ children }) => {
       // Ignore notification refresh errors.
     }
   }, []);
+
+  const refreshPortalData = useCallback(async () => {
+    const currentSession = sessionVersionRef.current;
+    try {
+      const data = await bootstrapApi.loadAll();
+      if (currentSession !== sessionVersionRef.current) return false;
+      setStore({
+        orders: data.orders || [],
+        customers: data.customers || [],
+        services: data.services || [],
+        staff: data.staff || [],
+        transactions: data.transactions || [],
+        inventory: data.inventory || [],
+        settings: data.settings || EMPTY_SETTINGS,
+      });
+      setNotifications(data.notifications || []);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user) return undefined;
+    const intervalSecs = Number(
+      user.notificationPreferences?.autoRefreshSeconds ?? 15
+    );
+    const onFocus = () => {
+      refreshPortalData();
+    };
+    window.addEventListener('focus', onFocus);
+
+    let timer = null;
+    if (intervalSecs > 0) {
+      timer = setInterval(() => {
+        refreshPortalData();
+      }, Math.max(10, intervalSecs) * 1000);
+    }
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      if (timer) clearInterval(timer);
+    };
+  }, [user, refreshPortalData]);
 
   const createOrder = useCallback(
     async (input) => {
@@ -975,6 +1045,19 @@ export const AppProvider = ({ children }) => {
                 }
               : s
           ),
+          customers: updatedUser.customerId
+            ? prev.customers.map((c) =>
+                c.id === updatedUser.customerId
+                  ? {
+                      ...c,
+                      fullName: updatedUser.name,
+                      email: updatedUser.email,
+                      contactNumber: updatedUser.contactNumber,
+                      address: updatedUser.address ?? c.address,
+                    }
+                  : c
+              )
+            : prev.customers,
         }));
 
         notify('Profile updated');
@@ -992,16 +1075,55 @@ export const AppProvider = ({ children }) => {
     [user, notify]
   );
 
+  const changeCurrentUserPassword = useCallback(
+    async (payload) => {
+      try {
+        const res = await authApi.changePassword(payload);
+        notify(res.message || 'Password updated successfully.');
+        return { ok: true };
+      } catch (err) {
+        const msg = extractErrorMessage(err, 'Unable to change password.');
+        notify(msg, 'error');
+        return { ok: false, error: msg };
+      }
+    },
+    [notify]
+  );
+
+  const updateNotificationPreferences = useCallback(
+    async (prefs) => {
+      try {
+        const res = await authApi.updatePreferences(prefs);
+        if (res.user) setUser(res.user);
+        notify('Notification preferences saved.');
+        return { ok: true, user: res.user };
+      } catch (err) {
+        const msg = extractErrorMessage(err, 'Unable to update preferences.');
+        notify(msg, 'error');
+        return { ok: false, error: msg };
+      }
+    },
+    [notify]
+  );
+
   return (
     <AppContext.Provider
       value={{
         user,
+        customerProfile:
+          user?.role === 'CUSTOMER'
+            ? store.customers.find((c) => c.id === user.customerId) || store.customers[0] || null
+            : null,
         authLoading,
         dataLoading,
         login,
-        registerStaff,
+        registerCustomer,
         logout,
         refreshData: hydrateFromDatabase,
+        refreshNotifications,
+        refreshPortalData,
+        changeCurrentUserPassword,
+        updateNotificationPreferences,
         orders: store.orders,
         customers: store.customers,
         services: store.services,
