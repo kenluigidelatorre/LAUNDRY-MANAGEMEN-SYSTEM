@@ -16,6 +16,12 @@ function mapCustomer(row) {
   };
 }
 
+async function getCustomerById(id) {
+  if (!id) return null;
+  const { rows } = await query(`SELECT * FROM customers WHERE id = $1`, [id]);
+  return rows[0] ? mapCustomer(rows[0]) : null;
+}
+
 async function listCustomers() {
   const { rows } = await query(
     `SELECT * FROM customers ORDER BY registration_date DESC, id DESC`
@@ -74,6 +80,7 @@ async function deleteCustomer(id) {
 }
 
 module.exports = {
+  getCustomerById,
   listCustomers,
   createCustomer,
   updateCustomer,

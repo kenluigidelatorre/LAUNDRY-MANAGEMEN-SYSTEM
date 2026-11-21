@@ -11,10 +11,15 @@ function formatAuthUser(row) {
     name: row.full_name,
     email: row.email,
     role: row.role,
+    customerId: row.customer_id || null,
+    address: row.customer_address || '',
     contactNumber: row.contact_number,
     avatarInitials: getInitials(row.full_name),
     status: row.status,
     shift: row.shift,
+    notificationPreferences: authRepository.mergePreferences(
+      row.notification_preferences
+    ),
     dateRegistered:
       row.date_registered instanceof Date
         ? row.date_registered.toISOString().slice(0, 10)
@@ -32,6 +37,7 @@ async function login(req, res, next) {
         new AppError("No Wash n' Dash account found with that email address.", 401)
       );
     }
+
     if (matched.status !== 'Active') {
       return next(
         new AppError(
@@ -48,7 +54,7 @@ async function login(req, res, next) {
 
     const user = formatAuthUser(matched);
     const token = jwt.sign(
-      { id: user.id, role: user.role, email: user.email },
+      { id: user.id, role: user.role, email: user.email, customerId: user.customerId },
       env.jwtSecret,
       { expiresIn: env.jwtExpiresIn }
     );
@@ -65,17 +71,17 @@ async function login(req, res, next) {
 
 async function register(req, res, next) {
   try {
-    const createdRow = await authRepository.registerStaffUser({
+    const createdRow = await authRepository.registerCustomerUser({
       fullName: req.body.fullName,
       email: req.body.email,
       contactNumber: req.body.contactNumber,
+      address: req.body.address,
       password: req.body.password,
-      shift: req.body.shift,
     });
 
     const user = formatAuthUser(createdRow);
     const token = jwt.sign(
-      { id: user.id, role: user.role, email: user.email },
+      { id: user.id, role: user.role, email: user.email, customerId: user.customerId },
       env.jwtSecret,
       { expiresIn: env.jwtExpiresIn }
     );
@@ -111,6 +117,7 @@ async function updateProfile(req, res, next) {
       fullName: req.body.fullName,
       email: req.body.email,
       contactNumber: req.body.contactNumber,
+      address: req.body.address,
       shift: req.body.shift,
     });
     if (!updated) {
@@ -125,9 +132,42 @@ async function updateProfile(req, res, next) {
   }
 }
 
+async function changePassword(req, res, next) {
+  try {
+    await authRepository.changePassword(
+      req.user.id,
+      req.body.currentPassword,
+      req.body.newPassword
+    );
+    return res.json({
+      success: true,
+      message: 'Password updated successfully.',
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function updatePreferences(req, res, next) {
+  try {
+    const updated = await authRepository.updateNotificationPreferences(
+      req.user.id,
+      req.body
+    );
+    return res.json({
+      success: true,
+      user: formatAuthUser(updated),
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   login,
   register,
   me,
   updateProfile,
+  changePassword,
+  updatePreferences,
 };

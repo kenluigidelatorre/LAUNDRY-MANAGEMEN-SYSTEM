@@ -14,9 +14,12 @@ async function getOrder(req, res, next) {
   try {
     const order = await orderRepository.getOrderById(req.params.id);
     if (!order) return next(new AppError(`Order ${req.params.id} not found.`, 404));
-    res.json({ success: true, data: order });
+    if (req.user.role === 'CUSTOMER' && order.customerId !== req.user.customerId) {
+      return next(new AppError('Access denied. You can only view your own orders.', 403));
+    }
+    return res.json({ success: true, data: order });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 }
 
@@ -92,15 +95,37 @@ async function updateExpectedDate(req, res, next) {
 
 async function cancelOrder(req, res, next) {
   try {
+    if (req.user.role === 'CUSTOMER') {
+      const existing = await orderRepository.getOrderById(req.params.id);
+      if (!existing) {
+        return next(new AppError(`Order ${req.params.id} not found.`, 404));
+      }
+      if (existing.customerId !== req.user.customerId) {
+        return next(new AppError('Access denied. You can only cancel your own orders.', 403));
+      }
+      if (!['Order Received', 'Pending'].includes(existing.laundryStatus)) {
+        return next(
+          new AppError(
+            `Order ${req.params.id} is already "${existing.laundryStatus}" and can no longer be cancelled online.`,
+            400
+          )
+        );
+      }
+    }
+
+    const reason =
+      req.body?.reason ||
+      (req.user.role === 'CUSTOMER' ? 'Cancelled by customer before washing' : 'Cancelled by administrator');
+
     const order = await orderRepository.updateOrderStatus(
       req.params.id,
       'Cancelled',
-      req.body?.reason || 'Cancelled by administrator',
+      reason,
       req.user
     );
-    res.json({ success: true, data: order });
+    return res.json({ success: true, data: order });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 }
 
