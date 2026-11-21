@@ -10,6 +10,8 @@ const notificationRepository = require('../repositories/notificationRepository')
 async function getBootstrapData(req, res, next) {
   try {
     const isAdmin = req.user.role === 'ADMIN';
+    const isCustomer = req.user.role === 'CUSTOMER';
+
     const [
       orders,
       customers,
@@ -21,13 +23,15 @@ async function getBootstrapData(req, res, next) {
       notifications,
     ] = await Promise.all([
       orderRepository.listOrders({}, req.user),
-      customerRepository.listCustomers(),
+      isCustomer
+        ? customerRepository.getCustomerById(req.user.customerId).then((c) => (c ? [c] : []))
+        : customerRepository.listCustomers(),
       serviceRepository.listServices(),
-      staffRepository.listStaff(),
-      paymentRepository.listTransactions(),
+      isCustomer ? Promise.resolve([]) : staffRepository.listStaff(),
+      paymentRepository.listTransactions(req.user),
       isAdmin ? inventoryRepository.listInventory() : Promise.resolve([]),
       settingsRepository.getSettings(),
-      notificationRepository.listNotifications(req.user.role),
+      notificationRepository.listNotifications(req.user),
     ]);
 
     res.json({

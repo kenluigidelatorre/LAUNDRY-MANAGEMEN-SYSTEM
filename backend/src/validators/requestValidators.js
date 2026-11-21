@@ -39,7 +39,11 @@ function validateRegister(req, res, next) {
 
 function validateCreateOrder(req, res, next) {
   try {
-    requireFields(req.body, ['customerId', 'expectedCompletionDate']);
+    const required =
+      req.user && req.user.role === 'CUSTOMER'
+        ? ['expectedCompletionDate']
+        : ['customerId', 'expectedCompletionDate'];
+    requireFields(req.body, required);
 
     const { services, initialPayment, additionalCharges, discount, paymentMethod } = req.body;
 
@@ -205,9 +209,25 @@ function validateInventory(req, res, next) {
   }
 }
 
+function validateChangePassword(req, res, next) {
+  try {
+    requireFields(req.body, ['currentPassword', 'newPassword']);
+    if (String(req.body.newPassword).length < 6) {
+      throw new AppError('New password must be at least 6 characters long.', 400);
+    }
+    if (req.body.currentPassword === req.body.newPassword) {
+      throw new AppError('New password must be different from your current password.', 400);
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   validateLogin,
   validateRegister,
+  validateChangePassword,
   validateCreateOrder,
   validateUpdateOrder,
   validateCustomer,

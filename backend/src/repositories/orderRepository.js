@@ -53,6 +53,29 @@ function mapOrderRow(row, items = [], history = []) {
   };
 }
 
+async function insertCustomerOrderNotification(client, customerId, title, description, isReadyPickup = false) {
+  const prefRes = await client.query(
+    `SELECT notification_preferences FROM staff_users WHERE customer_id = $1 AND role = 'CUSTOMER' LIMIT 1`,
+    [customerId]
+  );
+  if (prefRes.rows.length > 0 && prefRes.rows[0].notification_preferences) {
+    const prefs = prefRes.rows[0].notification_preferences;
+    if (isReadyPickup && prefs.readyForPickup === false) return;
+    if (!isReadyPickup && prefs.orderUpdates === false) return;
+  }
+  await client.query(
+    `INSERT INTO notifications (id, title, description, type, target_role, customer_id, is_read, created_at)
+     VALUES ($1, $2, $3, 'order', 'CUSTOMER', $4, FALSE, $5)`,
+    [
+      `NTF-${Date.now()}-${Math.floor(Math.random() * 10000)}-C`,
+      title,
+      description,
+      customerId,
+      new Date().toISOString(),
+    ]
+  );
+}
+
 async function listOrders(filters = {}, user = null) {
   const conditions = [];
   const params = [];
@@ -62,6 +85,9 @@ async function listOrders(filters = {}, user = null) {
     conditions.push(
       `(o.assigned_staff_id = $${params.length} OR o.laundry_status NOT IN ('Completed', 'Cancelled'))`
     );
+  } else if (user && user.role === 'CUSTOMER') {
+    params.push(user.customerId || '__NONE__');
+    conditions.push(`o.customer_id = $${params.length}`);
   }
 
   if (filters.q) {
@@ -159,29 +185,51 @@ async function getOrderById(orderId, client = null) {
 
 async function createOrder(input, actor) {
   return withTransaction(async (client) => {
+    const isCustomerActor = actor.role === 'CUSTOMER';
+    const targetCustomerId = isCustomerActor ? actor.customerId : input.customerId;
+
     const custRes = await client.query(
       `SELECT id, full_name, contact_number FROM customers WHERE id = $1`,
-      [input.customerId]
+      [targetCustomerId]
     );
     if (custRes.rows.length === 0) {
-      throw new AppError('Selected customer was not found.', 404);
+      throw new AppError(
+        isCustomerActor
+          ? 'Your customer profile could not be located. Please contact the branch.'
+          : 'Selected customer was not found.',
+        404
+      );
     }
     const customer = custRes.rows[0];
 
-    const staffIdToUse = input.assignedStaffId || actor.id;
-    const staffRes = await client.query(
-      `SELECT id, full_name FROM staff_users WHERE id = $1`,
-      [staffIdToUse]
-    );
-    if (staffRes.rows.length === 0) {
-      throw new AppError('Assigned staff member was not found.', 404);
+    let staffMember;
+    if (isCustomerActor) {
+      const activeStaffRes = await client.query(
+        `SELECT id, full_name FROM staff_users
+         WHERE role IN ('STAFF', 'ADMIN') AND status = 'Active'
+         ORDER BY CASE WHEN role = 'STAFF' THEN 0 ELSE 1 END, id ASC
+         LIMIT 1`
+      );
+      if (activeStaffRes.rows.length === 0) {
+        throw new AppError('No active staff members are available to receive orders.', 400);
+      }
+      staffMember = activeStaffRes.rows[0];
+    } else {
+      const staffIdToUse = input.assignedStaffId || actor.id;
+      const staffRes = await client.query(
+        `SELECT id, full_name FROM staff_users WHERE id = $1`,
+        [staffIdToUse]
+      );
+      if (staffRes.rows.length === 0) {
+        throw new AppError('Assigned staff member was not found.', 404);
+      }
+      staffMember = staffRes.rows[0];
     }
-    const staffMember = staffRes.rows[0];
 
     // Resolve services from DB (deduplicate if same service sent twice)
     const serviceIds = [...new Set(input.services.map((s) => s.serviceId))];
     const srvRes = await client.query(
-      `SELECT id, name, price_per_kg FROM laundry_services WHERE id = ANY($1::varchar[])`,
+      `SELECT id, name, price_per_kg, available FROM laundry_services WHERE id = ANY($1::varchar[])`,
       [serviceIds]
     );
     const serviceMap = new Map(srvRes.rows.map((s) => [s.id, s]));
@@ -191,6 +239,9 @@ async function createOrder(input, actor) {
       const srv = serviceMap.get(reqItem.serviceId);
       if (!srv) {
         throw new AppError(`Laundry service ${reqItem.serviceId} not found.`, 400);
+      }
+      if (isCustomerActor && !srv.available) {
+        throw new AppError(`Laundry service "${srv.name}" is currently unavailable.`, 400);
       }
       const weightKg = Math.round(Number(reqItem.weightKg) * 10) / 10;
       const pricePerKg = Number(srv.price_per_kg);
@@ -207,14 +258,12 @@ async function createOrder(input, actor) {
     const totalWeightKg =
       Math.round(lines.reduce((s, l) => s + l.weightKg, 0) * 10) / 10;
     const serviceSummary = lines.map((l) => l.serviceName).join(' + ');
-    const additionalCharges = Math.max(0, Number(input.additionalCharges || 0));
-    const discount = Math.max(0, Number(input.discount || 0));
+    const additionalCharges = isCustomerActor ? 0 : Math.max(0, Number(input.additionalCharges || 0));
+    const discount = isCustomerActor ? 0 : Math.max(0, Number(input.discount || 0));
     const totalAmount = calculateMultiServiceTotal(lines, additionalCharges, discount);
-
-    const initialPayment = Math.min(
-      totalAmount,
-      Math.max(0, Number(input.initialPayment || 0))
-    );
+    const initialPayment = isCustomerActor
+      ? 0
+      : Math.min(totalAmount, Math.max(0, Number(input.initialPayment || 0)));
     const remainingBalance =
       Math.max(0, Math.round((totalAmount - initialPayment) * 100) / 100);
     const paymentStatus =
@@ -337,14 +386,20 @@ async function createOrder(input, actor) {
     }
 
     await client.query(
-      `INSERT INTO notifications (id, title, description, type, target_role, is_read, created_at)
-       VALUES ($1, $2, $3, 'order', 'ALL', FALSE, $4)`,
+      `INSERT INTO notifications (id, title, description, type, target_role, customer_id, is_read, created_at)
+       VALUES ($1, $2, $3, 'order', 'ALL', NULL, FALSE, $4)`,
       [
-        `NTF-${Date.now()}`,
-        `New Order ${orderId}`,
+        `NTF-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        isCustomerActor ? `Customer Booking ${orderId}` : `New Order ${orderId}`,
         `${customer.full_name} — ${serviceSummary} (${formatPHP(totalAmount)})`,
         nowIso,
       ]
+    );
+    await insertCustomerOrderNotification(
+      client,
+      customer.id,
+      `Order Placed: #${orderId}`,
+      `Your ${serviceSummary} request (${totalWeightKg.toFixed(1)} kg · ${formatPHP(totalAmount)}) has been received.`
     );
 
     const order = await getOrderById(orderId, client);
@@ -457,6 +512,13 @@ async function updateOrder(orderId, input) {
       );
     }
 
+    await insertCustomerOrderNotification(
+      client,
+      existing.customer_id,
+      `Order Updated: #${orderId}`,
+      `Your order details were updated (${serviceSummary}, ${totalWeightKg} kg).`
+    );
+
     return getOrderById(orderId, client);
   });
 }
@@ -534,15 +596,23 @@ async function updateOrderStatus(orderId, newStatus, remarks, actor) {
 
     if (newStatus === 'Ready for Pickup') {
       await client.query(
-        `INSERT INTO notifications (id, title, description, type, target_role, is_read, created_at)
-         VALUES ($1, $2, $3, 'order', 'ALL', FALSE, $4)`,
+        `INSERT INTO notifications (id, title, description, type, target_role, customer_id, is_read, created_at)
+         VALUES ($1, $2, $3, 'order', 'ALL', NULL, FALSE, $4)`,
         [
-          `NTF-${Date.now()}`,
+          `NTF-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           `Ready for Pickup: ${orderId}`,
           `${target.customer_name}'s ${target.service_summary} is ready for pickup.`,
           nowIso,
         ]
       );
+    }
+    if (['Pending', 'Washing', 'Drying', 'Folding', 'Ready for Pickup', 'Completed', 'Cancelled'].includes(newStatus)) {
+      const isReady = newStatus === 'Ready for Pickup';
+      const title = isReady ? `Ready for Pickup: #${orderId}` : `${newStatus}: #${orderId}`;
+      const desc = isReady
+        ? `Great news! Your ${target.service_summary} order is folded, packed, and ready for counter pickup.`
+        : `Your ${target.service_summary} order has moved to ${newStatus}.`;
+      await insertCustomerOrderNotification(client, target.customer_id, title, desc, isReady);
     }
 
     return getOrderById(orderId, client);
@@ -580,17 +650,32 @@ async function assignStaff(orderId, staffId, remarks, actor) {
       ]
     );
 
+    await insertCustomerOrderNotification(
+      client,
+      orderRes.rows[0].customer_id,
+      `Staff Assigned: #${orderId}`,
+      `${staffMember.full_name} is now handling your laundry order.`
+    );
+
     return getOrderById(orderId, client);
   });
 }
 
 async function updateExpectedDate(orderId, expectedCompletionDate) {
-  const { rowCount } = await query(
-    `UPDATE orders SET expected_completion_date = $2, updated_at = NOW() WHERE id = $1`,
-    [orderId, expectedCompletionDate]
-  );
-  if (rowCount === 0) throw new AppError(`Order ${orderId} not found.`, 404);
-  return getOrderById(orderId);
+  return withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `UPDATE orders SET expected_completion_date = $2, updated_at = NOW() WHERE id = $1 RETURNING customer_id`,
+      [orderId, expectedCompletionDate]
+    );
+    if (rows.length === 0) throw new AppError(`Order ${orderId} not found.`, 404);
+    await insertCustomerOrderNotification(
+      client,
+      rows[0].customer_id,
+      `Schedule Updated: #${orderId}`,
+      `Your expected pickup/completion time has been updated.`
+    );
+    return getOrderById(orderId, client);
+  });
 }
 
 async function deleteOrder(orderId) {

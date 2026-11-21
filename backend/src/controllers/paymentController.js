@@ -2,7 +2,7 @@ const paymentRepository = require('../repositories/paymentRepository');
 
 async function listTransactions(req, res, next) {
   try {
-    const data = await paymentRepository.listTransactions();
+    const data = await paymentRepository.listTransactions(req.user);
     res.json({ success: true, data });
   } catch (err) {
     next(err);
